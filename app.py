@@ -1,17 +1,3 @@
-Aby aplikacja była ciekawsza i bardziej profesjonalna, dodamy do niej dashboard z wykresami (używając biblioteki Plotly), system zakładek (Tabs) oraz wskaźniki KPI (kluczowe wskaźniki efektywności), które podsumują stan magazynu na samym górze strony.
-
-Oto zaktualizowany kod. Pamiętaj, aby dodać plotly do pliku requirements.txt.
-
-1. Zaktualizowany requirements.txt
-Plaintext
-
-streamlit
-supabase
-plotly
-pandas
-2. Zaktualizowany kod app.py
-Python
-
 import streamlit as st
 from supabase import create_client, Client
 import pandas as pd
