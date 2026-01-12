@@ -1,2 +1,4 @@
-supabase
 streamlit
+supabase
+plotly
+pandas
