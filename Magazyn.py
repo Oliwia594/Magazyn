@@ -2,7 +2,6 @@ import streamlit as st
 from supabase import create_client, Client
 
 # Konfiguracja połączenia z Supabase
-# Najlepiej przechowywać te dane w Streamlit Secrets (Settings -> Secrets na Streamlit Cloud)
 url = st.secrets["SUPABASE_URL"]
 key = st.secrets["SUPABASE_KEY"]
 supabase: Client = create_client(url, key)
@@ -21,6 +20,7 @@ with st.form("form_kategorie", clear_on_submit=True):
             data = {"nazwa": kat_nazwa, "opis": kat_opis}
             response = supabase.table("kategorie").insert(data).execute()
             st.success(f"Dodano kategorię: {kat_nazwa}")
+            # st.rerun() # Opcjonalnie odśwież, by kategoria była od razu widoczna w formularzu produktu
         else:
             st.error("Nazwa kategorii jest wymagana!")
 
@@ -36,10 +36,8 @@ with st.form("form_produkty", clear_on_submit=True):
     prod_nazwa = st.text_input("Nazwa produktu")
     prod_liczba = st.number_input("Liczba (szt.)", min_value=0, step=1)
     prod_cena = st.number_input("Cena", min_value=0.0, format="%.2f")
-   
-    # Wybór kategorii z listy
+    
     selected_cat_name = st.selectbox("Wybierz kategorię", options=list(cat_options.keys()))
-   
     submit_prod = st.form_submit_button("Zapisz produkt")
 
     if submit_prod:
@@ -52,10 +50,46 @@ with st.form("form_produkty", clear_on_submit=True):
             }
             response = supabase.table("produkty").insert(product_data).execute()
             st.success(f"Dodano produkt: {prod_nazwa}")
+            st.rerun() # Odświeżamy aplikację, aby lista produktów poniżej się zaktualizowała
         else:
             st.error("Wypełnij wymagane pola!")
 
-# --- SEKCJA 3: PODGLĄD DANYCH ---
-if st.checkbox("Pokaż aktualną listę produktów"):
-    res = supabase.table("produkty").select("nazwa, liczba, cena, kategorie(nazwa)").execute()
-    st.table(res.data)
+# --- SEKCJA 3: PODGLĄD I USUWANIE DANYCH ---
+st.divider()
+st.header("Lista Produktów i Usuwanie")
+
+# Pobranie produktów
+res = supabase.table("produkty").select("id, nazwa, liczba, cena, kategorie(nazwa)").execute()
+produkty_dane = res.data
+
+if produkty_dane:
+    # Wyświetlenie tabeli
+    # Przygotowanie danych do ładnego wyświetlenia (spłaszczenie nazwy kategorii)
+    display_data = []
+    for p in produkty_dane:
+        display_data.append({
+            "ID": p['id'],
+            "Nazwa": p['nazwa'],
+            "Liczba": p['liczba'],
+            "Cena": p['cena'],
+            "Kategoria": p['kategorie']['nazwa'] if p['kategorie'] else "Brak"
+        })
+    
+    st.table(display_data)
+
+    # Formularz usuwania produktu
+    st.subheader("Usuń produkt")
+    lista_nazw = [p['nazwa'] for p in produkty_dane]
+    produkt_do_usuniecia = st.selectbox("Wybierz produkt do usunięcia", options=lista_nazw)
+    
+    if st.button("Usuń zaznaczony produkt", type="primary"):
+        # Znalezienie ID po nazwie
+        item_id = next(item['id'] for item in produkty_dane if item['nazwa'] == produkt_do_usuniecia)
+        
+        # Usunięcie z Supabase
+        supabase.table("produkty").delete().eq("id", item_id).execute()
+        
+        st.warning(f"Produkt '{produkt_do_usuniecia}' został usunięty.")
+        st.rerun() # Odświeżamy widok po usunięciu
+else:
+    st.info("Brak produktów w bazie danych.")
