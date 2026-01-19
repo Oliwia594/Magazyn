@@ -32,22 +32,19 @@ def get_categories():
 with st.sidebar:
     st.image("https://cdn-icons-png.flaticon.com/512/2271/2271068.png", width=100)
     st.title("Menu Magazynu")
-    choice = st.radio("Nawigacja", ["📈 Analiza i Statystyki", "📥 Operacje Wejścia", "🔍 Przegląd Tabel"])
+    choice = st.radio("Nawigacja", ["📈 Analiza i Statystyki", "📥 Operacje Wejścia", "🔍 Przegląd i Stan"])
     st.info("System połączony z bazą Supabase ✅")
 
 # --- WIDOK 1: ANALIZA I STATYSTYKI ---
 if choice == "📈 Analiza i Statystyki":
     st.title("📊 Inteligentne Statystyki")
-    
     df_p = get_products()
     df_k = get_categories()
 
     if not df_p.empty and not df_k.empty:
-        # Łączenie tabel
         df = df_p.merge(df_k, left_on="kategoria", right_on="id", suffixes=('_prod', '_kat'))
         df['wartosc_calkowita'] = df['liczba'] * df['cena']
-
-        # Wskaźniki
+        
         m1, m2, m3, m4 = st.columns(4)
         m1.metric("📦 Suma Towarów", f"{int(df['liczba'].sum())} szt.")
         m2.metric("💰 Wartość", f"{df['wartosc_calkowita'].sum():,.2f} PLN")
@@ -56,19 +53,16 @@ if choice == "📈 Analiza i Statystyki":
 
         st.divider()
         col_left, col_right = st.columns(2)
-
         with col_left:
             st.subheader("🔥 Top Produkty wg Wartości")
-            fig = px.bar(df.nlargest(10, 'wartosc_calkowita'), 
-                         x='nazwa_prod', y='wartosc_calkowita', color='nazwa_kat')
+            fig = px.bar(df.nlargest(10, 'wartosc_calkowita'), x='nazwa_prod', y='wartosc_calkowita', color='nazwa_kat')
             st.plotly_chart(fig, use_container_width=True)
-
         with col_right:
             st.subheader("🥧 Udział Kategorii")
             fig_pie = px.pie(df, names='nazwa_kat', values='liczba', hole=0.4)
             st.plotly_chart(fig_pie, use_container_width=True)
     else:
-        st.warning("Baza jest pusta. Dodaj kategorie i produkty!")
+        st.warning("Baza jest pusta.")
 
 # --- WIDOK 2: OPERACJE WEJŚCIA ---
 elif choice == "📥 Operacje Wejścia":
@@ -76,9 +70,7 @@ elif choice == "📥 Operacje Wejścia":
     tab1, tab2 = st.tabs(["✨ Nowy Produkt", "📁 Nowa Kategoria"])
     
     with tab1:
-        st.subheader("Formularz Produktu")
         df_k = get_categories()
-        
         if df_k.empty:
             st.error("❌ Musisz najpierw dodać kategorię!")
         else:
@@ -86,77 +78,66 @@ elif choice == "📥 Operacje Wejścia":
             with st.form("new_product_form", clear_on_submit=True):
                 nazwa = st.text_input("Nazwa produktu")
                 col_a, col_b = st.columns(2)
-                ilosc = col_a.number_input("Ilość", min_value=0, step=1)
+                ilosc = col_a.number_input("Ilość początkowa", min_value=0, step=1)
                 cena = col_b.number_input("Cena", min_value=0.0, format="%.2f")
                 kat_nazwa = st.selectbox("Kategoria", options=list(opcje_kategorii.keys()))
-                
                 if st.form_submit_button("🚀 Dodaj Produkt"):
                     if nazwa:
-                        try:
-                            supabase.table("Produkt").insert({
-                                "nazwa": nazwa, "liczba": ilosc, "cena": cena, 
-                                "kategoria": opcje_kategorii[kat_nazwa]
-                            }).execute()
-                            st.success(f"Dodano: {nazwa}")
-                            # Brak st.balloons() zgodnie z prośbą
-                        except Exception as e:
-                            st.error(f"Błąd zapisu: {e}")
+                        supabase.table("Produkt").insert({"nazwa": nazwa, "liczba": ilosc, "cena": cena, "kategoria": opcje_kategorii[kat_nazwa]}).execute()
+                        st.success(f"Dodano: {nazwa}")
                     else:
-                        st.error("Podaj nazwę produktu!")
+                        st.error("Podaj nazwę!")
 
     with tab2:
-        st.subheader("Nowa Kategoria")
         with st.form("new_category_form", clear_on_submit=True):
-            k_kod = st.text_input("Kod (np. KAT-01)")
+            k_kod = st.text_input("Kod")
             k_nazwa = st.text_input("Nazwa")
             k_opis = st.text_area("Opis")
-            
             if st.form_submit_button("📁 Zapisz Kategorię"):
                 if k_kod and k_nazwa:
-                    try:
-                        supabase.table("kategoria").insert({
-                            "kod": k_kod, "nazwa": k_nazwa, "opis": k_opis
-                        }).execute()
-                        st.success("Kategoria dodana!")
-                        st.rerun() 
-                    except Exception as e:
-                        st.error(f"Błąd: Kod {k_kod} już istnieje lub brak uprawnień.")
-                else:
-                    st.error("Wypełnij pola Kod i Nazwa!")
-
-# --- WIDOK 3: PRZEGLĄD I USUWANIE ---
-elif choice == "🔍 Przegląd Tabel":
-    st.title("🔍 Inspekcja i Zarządzanie")
-    
-    df_p = get_products()
-    df_k = get_categories()
-
-    col1, col2 = st.columns([2, 1])
-
-    with col1:
-        st.write("### 📦 Lista Produktów")
-        if not df_p.empty:
-            st.dataframe(df_p, use_container_width=True)
-        else:
-            st.info("Brak produktów.")
-
-    with col2:
-        st.write("### 🗑️ Usuń Produkt")
-        if not df_p.empty:
-            with st.form("delete_form"):
-                produkt_do_usuniecia = st.selectbox(
-                    "Wybierz produkt", 
-                    options=df_p['nazwa'].tolist()
-                )
-                if st.form_submit_button("Usuń trwale", type="primary"):
-                    # Pobranie ID produktu na podstawie nazwy
-                    id_to_del = df_p[df_p['nazwa'] == produkt_do_usuniecia]['id'].values[0]
-                    supabase.table("Produkt").delete().eq("id", id_to_del).execute()
-                    st.warning(f"Usunięto: {produkt_do_usuniecia}")
+                    supabase.table("kategoria").insert({"kod": k_kod, "nazwa": k_nazwa, "opis": k_opis}).execute()
+                    st.success("Kategoria dodana!")
                     st.rerun()
-        else:
-            st.write("Brak danych do usunięcia.")
 
-    st.divider()
-    st.write("### 📁 Kategorie")
-    st.dataframe(df_k, use_container_width=True)
+# --- WIDOK 3: PRZEGLĄD I ZARZĄDZANIE ILOŚCIĄ ---
+elif choice == "🔍 Przegląd i Stan":
+    st.title("🔍 Zarządzanie Stanem Magazynowym")
+    df_p = get_products()
+
+    if not df_p.empty:
+        # Wyświetlanie tabeli
+        st.write("### 📦 Aktualne stany")
+        st.dataframe(df_p[['nazwa', 'liczba', 'cena']], use_container_width=True)
+
+        st.divider()
+        col1, col2 = st.columns(2)
+
+        with col1:
+            st.subheader("📉 Zdejmij ze stanu (Wydanie)")
+            with st.form("sub_form"):
+                prod_name = st.selectbox("Wybierz produkt", options=df_p['nazwa'].tolist(), key="sub_select")
+                ile_odjac = st.number_input("Ile sztuk odebrać?", min_value=1, step=1)
+                
+                if st.form_submit_button("⬇️ Potwierdź wydanie"):
+                    aktualny_stan = df_p[df_p['nazwa'] == prod_name]['liczba'].values[0]
+                    nowy_stan = aktualny_stan - ile_odjac
+                    
+                    if nowy_stan < 0:
+                        st.error(f"Nie możesz odjąć {ile_odjac} szt. (Dostępne: {aktualny_stan})")
+                    else:
+                        prod_id = df_p[df_p['nazwa'] == prod_name]['id'].values[0]
+                        supabase.table("Produkt").update({"liczba": nowy_stan}).eq("id", prod_id).execute()
+                        st.success(f"Zaktualizowano stan dla {prod_name}. Pozostało: {nowy_stan}")
+                        st.rerun()
+
+        with col2:
+            st.subheader("🗑️ Usuwanie całkowite")
+            with st.form("del_form"):
+                prod_to_del = st.selectbox("Produkt do usunięcia z bazy", options=df_p['nazwa'].tolist())
+                if st.form_submit_button("🧨 Usuń trwale produkt", type="primary"):
+                    p_id = df_p[df_p['nazwa'] == prod_to_del]['id'].values[0]
+                    supabase.table("Produkt").delete().eq("id", p_id).execute()
+                    st.warning(f"Produkt {prod_to_del} został usunięty z bazy.")
+                    st.rerun()
+    else:
+        st.info("Baza jest pusta.")
