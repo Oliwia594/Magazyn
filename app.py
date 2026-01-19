@@ -98,7 +98,7 @@ elif choice == "📥 Operacje Wejścia":
                                 "kategoria": opcje_kategorii[kat_nazwa]
                             }).execute()
                             st.success(f"Dodano: {nazwa}")
-                            st.balloons()
+                            # Brak st.balloons() zgodnie z prośbą
                         except Exception as e:
                             st.error(f"Błąd zapisu: {e}")
                     else:
@@ -118,16 +118,45 @@ elif choice == "📥 Operacje Wejścia":
                             "kod": k_kod, "nazwa": k_nazwa, "opis": k_opis
                         }).execute()
                         st.success("Kategoria dodana!")
-                        st.rerun() # Ważne: odświeża listę dla produktów
+                        st.rerun() 
                     except Exception as e:
-                        st.error(f"Błąd: Prawdopodobnie kod {k_kod} już istnieje lub brak uprawnień RLS.")
+                        st.error(f"Błąd: Kod {k_kod} już istnieje lub brak uprawnień.")
                 else:
                     st.error("Wypełnij pola Kod i Nazwa!")
 
-# --- WIDOK 3: PRZEGLĄD ---
+# --- WIDOK 3: PRZEGLĄD I USUWANIE ---
 elif choice == "🔍 Przegląd Tabel":
-    st.title("🔍 Inspekcja Bazy")
-    st.write("### 📦 Produkty")
-    st.dataframe(get_products(), use_container_width=True)
+    st.title("🔍 Inspekcja i Zarządzanie")
+    
+    df_p = get_products()
+    df_k = get_categories()
+
+    col1, col2 = st.columns([2, 1])
+
+    with col1:
+        st.write("### 📦 Lista Produktów")
+        if not df_p.empty:
+            st.dataframe(df_p, use_container_width=True)
+        else:
+            st.info("Brak produktów.")
+
+    with col2:
+        st.write("### 🗑️ Usuń Produkt")
+        if not df_p.empty:
+            with st.form("delete_form"):
+                produkt_do_usuniecia = st.selectbox(
+                    "Wybierz produkt", 
+                    options=df_p['nazwa'].tolist()
+                )
+                if st.form_submit_button("Usuń trwale", type="primary"):
+                    # Pobranie ID produktu na podstawie nazwy
+                    id_to_del = df_p[df_p['nazwa'] == produkt_do_usuniecia]['id'].values[0]
+                    supabase.table("Produkt").delete().eq("id", id_to_del).execute()
+                    st.warning(f"Usunięto: {produkt_do_usuniecia}")
+                    st.rerun()
+        else:
+            st.write("Brak danych do usunięcia.")
+
+    st.divider()
     st.write("### 📁 Kategorie")
-    st.dataframe(get_categories(), use_container_width=True)
+    st.dataframe(df_k, use_container_width=True)
